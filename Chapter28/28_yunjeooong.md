@@ -1,6 +1,6 @@
 
 
-# Chapter 28 — Locks 딥다이브 정리
+# Chapter 28
 
 ---
 
