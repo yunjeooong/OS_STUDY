@@ -24,7 +24,7 @@
 | **임계영역 최소화** | 공유 데이터 부분만 짧게 감싸라. | 보유 시간이 짧을수록 충돌과 캐시 오염이 줄어든다. |
 | **락 그레인 통제** | coarse (하나) ↔ fine (여러 개) 사이 균형 | 너무 세분화하면 데드락 그래프가 기하급수적으로 늘어난다. |
 | **에러·리턴 경로 안전화** | malloc 실패, 예외 처리 시 **반드시 락 해제** | 락이 열린 채 함수 탈출 → 숨은 데드락. |
-| **공정성·기아 방지** | FIFO, 티켓 락, 우선순위 상속 등 마련 | 무한 대기는 실제 서비스에서 SLA 파괴로 직결된다. citeturn7file3 |
+| **공정성·기아 방지** | FIFO, 티켓 락, 우선순위 상속 등 마련 | 무한 대기는 실제 서비스에서 SLA 파괴로 직결된다. |
 
 ---
 
@@ -36,13 +36,13 @@ typedef struct { int value; pthread_mutex_t lock; } counter_t;
 void increment(counter_t *c){ pthread_mutex_lock(&c->lock); c->value++; pthread_mutex_unlock(&c->lock); }
 ```
 *장점*: 구현 간단·정확.  
-*단점*: 모든 쓰레드가 동일 락에 줄 서기 → 2 쓰레드부터 성능 붕괴. 실험 결과 4‑코어 i5에서 2개 쓰레드가 1M 증가 시 5 초 초과 소요 citeturn6file1.
+*단점*: 모든 쓰레드가 동일 락에 줄 서기 → 2 쓰레드부터 성능 붕괴. 실험 결과 4‑코어 i5에서 2개 쓰레드가 1M 증가 시 5 초 초과 소요.
 
 ### 3‑2. **Sloppy Counter(엉성한 카운터)**  
 * 아이디어: **CPU 당 지역 카운터** + 전역 카운터.  
 * 지역 값이 임계치 *S*를 넘으면 전역으로 플러시.  
 * S ↑ → 정확도↓/성능↑, S ↓ → 정확도↑/성능↓.  
-실험에서 *S = 1024* 설정 시 4 CPU 총 4 M 증가를 단일 쓰레드 시간과 거의 동일하게 달성했다. citeturn6file1  
+실험에서 *S = 1024* 설정 시 4 CPU 총 4 M 증가를 단일 쓰레드 시간과 거의 동일하게 달성했다.  
 > **WHY?** 지역 락끼리 독립이라 충돌이 *NUMA 로컬*로 제한되고, 전역 락 충돌 빈도가 S에 반비례로 감소한다.
 
 ---
@@ -50,7 +50,7 @@ void increment(counter_t *c){ pthread_mutex_lock(&c->lock); c->value++; pthread_
 ## 4. 사례 2 — 연결 리스트(list)
 
 ### 4‑1. 전역 락 버전  
-`List_Insert()`·`List_Lookup()` 시작‑끝에 `pthread_mutex_lock()` / `unlock()`을 배치. citeturn6file1  
+`List_Insert()`·`List_Lookup()` 시작‑끝에 `pthread_mutex_lock()` / `unlock()`을 배치.
 *문제*: `malloc()` 실패, 예외 리턴 등 **락 해제 누락** 위험 → 치명적 데드락.
 
 ### 4‑2. 수정: 락 밖 할당 + 공통 해제 경로  
@@ -62,7 +62,7 @@ void increment(counter_t *c){ pthread_mutex_lock(&c->lock); c->value++; pthread_
 ### 4‑3. Hand‑over‑Hand Locking(노드별 락)  
 노드마다 락을 걸고 다음 노드 락을 먼저 잡은 뒤 현재 락을 푼다.  
 *장점*: 중간 노드끼리 병행 탐색 가능.  
-*단점*: **락 획득/해제 오버헤드**가 노드 수에 비례해 증가 → 작은 리스트에선 오히려 느리다. citeturn6file1
+*단점*: **락 획득/해제 오버헤드**가 노드 수에 비례해 증가 → 작은 리스트에선 오히려 느리다. 
 
 ---
 
@@ -71,7 +71,7 @@ void increment(counter_t *c){ pthread_mutex_lock(&c->lock); c->value++; pthread_
 - **데이터 구조**: 더미 노드 1개 + `headLock`(deq 전용) / `tailLock`(enq 전용) 두 개.  
 - **작동**: enqueue는 tail 락만, dequeue는 head 락만 사용 → 삽입·삭제가 거의 독립.  
 - **효과**: 생산자/소비자 패턴에서 대기열 병목을 대폭 완화.  
-> **WHY?** 큐가 비지 않을 땐 head·tail 영역이 메모리상으로 분리돼 캐시 슬래시도 최소화된다. citeturn6file1
+> **WHY?** 큐가 비지 않을 땐 head·tail 영역이 메모리상으로 분리돼 캐시 슬래시도 최소화된다.
 
 ---
 
@@ -87,7 +87,7 @@ void increment(counter_t *c){ pthread_mutex_lock(&c->lock); c->value++; pthread_
 ## 7. 성능 튜닝 체크포인트
 
 1. **컨텐션 관측**: perf stat, `pthread_mutex_timedlock()` 실패율로 락 충돌 현황 측정.  
-2. **백오프 삽입**: TAS 스핀락이라면 지수 백오프 / `sched_yield()` 로 버스 락 폭주 억제. citeturn7file3  
+2. **백오프 삽입**: TAS 스핀락이라면 지수 백오프 / `sched_yield()` 로 버스 락 폭주 억제.  
 3. **우선순위 역전 대응**: 리얼타임 스레드 포함 시 **Priority Inheritance** 속성 활성화.  
 4. **NUMA Locality**: 지역 락·캐시 라인 패딩으로 false‑sharing 제거.
 
